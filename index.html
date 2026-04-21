@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>トモコレ ペイントカラーガイド</title>
+  <meta name="description" content="トモダチコレクション わくわく生活のペイント機能で使える色合わせツール。ドット絵画像からカラーパレット・フルカラーの色情報を取得。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+  <!-- ヘッダー -->
+  <header>
+    <div class="header-inner">
+      <div class="header-logo">🎨</div>
+      <div class="header-text">
+        <h1>トモコレ ペイントカラーガイド</h1>
+        <p>ドット絵の色をゲーム内ペイント機能に合わせるためのツール（16×16対応）</p>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- アップロードエリア -->
+    <section id="upload-section">
+      <div id="drop-zone">
+        <div class="drop-icon">🖼️</div>
+        <p class="drop-title">画像をドロップ または クリックして選択</p>
+        <p class="drop-sub">対応形式: PNG / JPG / GIF / WEBP ｜ ゲーム内ペイントは 16×16 ピクセル</p>
+        <input type="file" id="file-input" accept="image/*" hidden>
+      </div>
+    </section>
+
+    <!-- メインコンテンツ（画像読み込み後に表示） -->
+    <section id="main-content" class="hidden">
+      <div class="content-grid">
+
+        <!-- 左：画像エリア -->
+        <div class="panel" id="image-panel">
+          <div class="panel-header">
+            <span class="panel-title">🖼️ 画像ビューア</span>
+            <div class="header-controls">
+              <button id="ruler-btn" class="ruler-btn" onclick="toggleRuler()">📏 ルーラー</button>
+              <div class="zoom-controls">
+                <button id="zoom-out" class="zoom-btn">−</button>
+                <span id="zoom-label">1×</span>
+                <button id="zoom-in" class="zoom-btn">＋</button>
+              </div>
+            </div>
+          </div>
+          <div class="img-info">📐 <span id="img-info">---</span></div>
+          <div class="canvas-wrapper" id="canvas-wrapper">
+            <canvas id="pixel-canvas"></canvas>
+            <canvas id="overlay-canvas"></canvas>
+          </div>
+          <p class="hint-text">👆 ピクセルをクリック／タップして色を取得</p>
+          <button id="reset-btn" class="sub-btn">🔄 別の画像を読み込む</button>
+        </div>
+
+        <!-- 右：カラー情報エリア -->
+        <div class="panel" id="info-panel">
+          <div class="panel-header">
+            <span class="panel-title">🎨 カラー情報</span>
+          </div>
+
+          <!-- 未選択メッセージ -->
+          <div id="no-select-msg">
+            <div class="no-select-icon">👇</div>
+            <p>左の画像のピクセルを<br>クリックしてください</p>
+          </div>
+
+          <!-- カラー情報（選択後） -->
+          <div id="color-info" class="hidden">
+
+            <!-- 選択色 -->
+            <div class="info-block">
+              <div class="info-label">選択した色</div>
+              <div class="selected-color-row">
+                <div id="selected-swatch" class="swatch-big"></div>
+                <div class="color-codes">
+                  <div class="code-row"><span class="code-key">位置</span><span id="pixel-pos" class="code-val">-</span></div>
+                  <div class="code-row"><span class="code-key">HEX</span><span id="hex-val" class="code-val">#------</span></div>
+                  <div class="code-row"><span class="code-key">RGB</span><span id="rgb-val" class="code-val">---,---,---</span></div>
+                  <div class="code-row"><span class="code-key">HSV</span><span id="hsv-val" class="code-val">---°,---,---</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- タブ切替 -->
+            <div class="tab-row">
+              <button class="tab-btn active" id="tab-palette" onclick="switchTab('palette')">📋 カラーパレット</button>
+              <button class="tab-btn" id="tab-fullcolor" onclick="switchTab('fullcolor')">🌈 フルカラー</button>
+            </div>
+
+            <!-- カラーパレットモード -->
+            <div id="mode-palette" class="mode-content">
+              <div class="info-block">
+                <div class="info-label">最も近いパレットの色</div>
+                <div class="closest-row">
+                  <div id="closest-swatch" class="swatch-big"></div>
+                  <div class="closest-info">
+                    <div class="code-row"><span class="code-key">HEX</span><span id="closest-hex" class="code-val">#------</span></div>
+                    <div class="code-row"><span class="code-key">位置</span><span id="closest-pos" class="code-val">---行 ---列</span></div>
+                    <div class="code-row"><span class="code-key">距離</span><span id="closest-dist" class="code-val">---</span></div>
+                  </div>
+                </div>
+              </div>
+              <!-- パレット表示 -->
+              <div class="info-block">
+                <div class="info-label">カラーパレット（ゲーム内近似）</div>
+                <div id="palette-grid" class="palette-grid"></div>
+                <p class="palette-note">※ 枠付きが最も近い色です。パレットは近似値です。</p>
+              </div>
+            </div>
+
+            <!-- フルカラーモード -->
+            <div id="mode-fullcolor" class="mode-content hidden">
+              <div class="info-block">
+                <div class="info-label">フルカラー ガイド</div>
+                <div class="fullcolor-guide">
+                  <!-- 色相スライダー -->
+                  <div class="guide-section">
+                    <div class="guide-label">① 色相スライダー (ZL ← → ZR)</div>
+                    <div class="hue-slider-wrap">
+                      <div class="hue-slider-bar" id="hue-bar"></div>
+                      <div class="hue-indicator" id="hue-indicator"></div>
+                      <div class="hue-labels"><span>ZL (赤 0°)</span><span>ZR (赤 360°)</span></div>
+                    </div>
+                    <p class="guide-val">色相: <strong id="hue-num">---</strong>° → スライダー位置: <strong id="hue-pos">--</strong>%</p>
+                  </div>
+                  <!-- SV正方形 -->
+                  <div class="guide-section">
+                    <div class="guide-label">② カラー正方形 (彩度×明度)</div>
+                    <div class="sv-square-wrap">
+                      <canvas id="sv-canvas" width="220" height="160"></canvas>
+                      <div class="sv-indicator" id="sv-indicator"></div>
+                    </div>
+                    <div class="sv-labels">
+                      <div><span>← 白/灰 (左)</span><span>鮮やか (右) →</span></div>
+                      <div><span>↑ 明るい (上)</span><span>↓ 暗い (下)</span></div>
+                    </div>
+                    <p class="guide-val">彩度: <strong id="sat-num">--</strong>% / 明度: <strong id="val-num">--</strong>%</p>
+                  </div>
+                  <!-- プレビュー -->
+                  <div class="guide-section">
+                    <div class="guide-label">③ ゲーム内でこの色を選ぶ手順</div>
+                    <div id="steps-box" class="steps-box"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Made by <a href="https://github.com/h1ro223" target="_blank">hiro / ヒロ</a> &nbsp;|&nbsp; トモコレ ペイントカラーガイド</p>
+    <p class="footer-note">※ カラーパレットの色はゲーム内の近似値です。フルカラーモードは正確なHSV値を表示します。</p>
+  </footer>
+
+  <script src="./script.js"></script>
+</body>
+</html>
