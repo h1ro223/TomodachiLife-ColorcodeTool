@@ -107,7 +107,7 @@ let rulerEnabled = false;
 let lastSelPx = -1, lastSelPy = -1;
 let interactionMode = 'select'; // 'select' or 'move'
 
-const ZOOM_STEPS = [1,2,4,8,12,16];
+const ZOOM_STEPS = [1,2,4,8,12]; // 16xは描画限界を超えるため削除
 
 // ============================================================
 //  DOM参照
@@ -528,11 +528,13 @@ function updateFullColorGuide(hsv, r, g, b) {
   ind.style.left = sx + 'px';
   ind.style.top  = sy + 'px';
 
-  // 100回基準と仮定
+  // 100回基準と仮定（予測値）
   const satPresses = s; 
   const valPresses = 100 - v;
-  document.getElementById('sat-presses').textContent = satPresses;
-  document.getElementById('val-presses').textContent = valPresses;
+  document.getElementById('sat-presses-r').textContent = satPresses;
+  document.getElementById('sat-presses-l').textContent = (100 - satPresses);
+  document.getElementById('val-presses-d').textContent = valPresses;
+  document.getElementById('val-presses-u').textContent = (100 - valPresses);
 
   // --- ステップ説明 ---
   const stepsBox = document.getElementById('steps-box');
@@ -576,7 +578,7 @@ function drawSvSquare(hue) {
 }
 
 // ============================================================
-//  タブ切替
+//  タブ切替 / モーダル制御
 // ============================================================
 function switchTab(mode) {
   currentMode = mode;
@@ -585,6 +587,23 @@ function switchTab(mode) {
   document.getElementById('mode-palette').classList.toggle('hidden', mode !== 'palette');
   document.getElementById('mode-fullcolor').classList.toggle('hidden', mode !== 'fullcolor');
 }
+
+function openModal(id) {
+  document.getElementById(id).classList.remove('hidden');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+
+// モーダル背景クリックで閉じる
+document.querySelectorAll('.modal').forEach(modal => {
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.classList.add('hidden');
+    }
+  });
+});
 
 // ============================================================
 //  初期化
