@@ -99,14 +99,13 @@ function colorDist(r1,g1,b1, r2,g2,b2) {
 }
 
 // ============================================================
-//  状態
-// ============================================================
 let zoom = 1;
 let imgData = null;
 let currentMode = 'palette';
 let closestIdx  = -1;
 let rulerEnabled = false;
 let lastSelPx = -1, lastSelPy = -1;
+let interactionMode = 'select'; // 'select' or 'move'
 
 const ZOOM_STEPS = [1,2,4,8,12,16];
 
@@ -156,6 +155,12 @@ function loadImageFile(file) {
   const url = URL.createObjectURL(file);
   const img = new Image();
   img.onload = () => {
+    // 1920x1080以上の画像は読み込まない（軽量化・フリーズ防止）
+    if (img.width >= 1920 || img.height >= 1080) {
+      alert('画像が大きすぎます！\n軽量化のため、1920×1080未満の画像をご使用ください。\n※推奨: 128×128ピクセル以下のドット絵');
+      return;
+    }
+
     const tmp = document.createElement('canvas');
     tmp.width = img.width; tmp.height = img.height;
     tmp.getContext('2d').drawImage(img, 0, 0);
@@ -164,6 +169,7 @@ function loadImageFile(file) {
       width: img.width,
       height: img.height,
       data: ctx.getImageData(0,0,img.width,img.height).data,
+      originalCanvas: tmp
     };
     URL.revokeObjectURL(url);
 
@@ -210,15 +216,8 @@ function renderPixelCanvas() {
   const ctx = pixelCanvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
 
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      const r = imgData.data[i], g = imgData.data[i+1], b = imgData.data[i+2], a = imgData.data[i+3];
-      if (a < 10) continue;
-      ctx.fillStyle = `rgb(${r},${g},${b})`;
-      ctx.fillRect(x * zoom, y * zoom, zoom, zoom);
-    }
-  }
+  // 高速レンダリング（drawImageで一括描画）
+  ctx.drawImage(imgData.originalCanvas, 0, 0, w * zoom, h * zoom);
 
   // グリッド線（zoom>=4のとき）
   if (zoom >= 4) {
@@ -349,6 +348,7 @@ zoomOut.addEventListener('click', () => {
 //  クリック / タップでピクセル選択
 // ============================================================
 function handleCanvasClick(e) {
+  if (interactionMode !== 'select') return; // 移動モード時は選択しない
   if (!imgData) return;
   const rect = pixelCanvas.getBoundingClientRect();
   let cx, cy;
@@ -371,7 +371,28 @@ function handleCanvasClick(e) {
 }
 
 pixelCanvas.addEventListener('click', handleCanvasClick);
-pixelCanvas.addEventListener('touchstart', e => { e.preventDefault(); handleCanvasClick(e); }, { passive: false });
+pixelCanvas.addEventListener('touchstart', e => {
+  if (interactionMode === 'select') {
+    e.preventDefault(); // 選択モード時はスクロールを防ぐ
+    handleCanvasClick(e);
+  }
+}, { passive: false });
+
+// ============================================================
+//  モード切替コントロール
+// ============================================================
+function setInteractionMode(mode) {
+  interactionMode = mode;
+  document.getElementById('mode-select-btn').classList.toggle('active', mode === 'select');
+  document.getElementById('mode-move-btn').classList.toggle('active', mode === 'move');
+  
+  const wrapper = document.getElementById('canvas-wrapper');
+  if (mode === 'move') {
+    wrapper.classList.add('move-mode');
+  } else {
+    wrapper.classList.remove('move-mode');
+  }
+}
 
 // ============================================================
 //  選択色の処理
@@ -459,27 +480,44 @@ function updatePaletteHighlight(bestIdx, bestDist) {
 
 // ============================================================
 //  フルカラーガイド更新
-//  ゲーム内スライダー配置:
-//    ZL(左端)=赤(0°) → 反時計回りに一周 → ZR(右端)=赤(360°/0°)
-//    左: 赤→マゼンタ→青  中央: シアン(180°)  右: 緑→黄→赤
-//    hue→pos変換: pos = ((360 - hue) % 360) / 360
+//  ゲーム内スライダー配置（非線形マッピング）
+//    ZL(左端)=赤(0°) → ZR(右端)=赤(360°/0°) (全200回)
 // ============================================================
+function hueToPresses(h) {
+  // 標準HSV(h)からゲーム内のZR押下回数(0〜200)への変換アンカー
+  const anchors = [
+    {h: 360, p: 0},
+    {h: 300, p: 26},
+    {h: 240, p: 63},
+    {h: 180, p: 100},
+    {h: 120, p: 137},
+    {h: 60,  p: 174},
+    {h: 0,   p: 200}
+  ];
+  if (h === 0) return 200;
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const a1 = anchors[i];
+    const a2 = anchors[i+1];
+    if (h <= a1.h && h >= a2.h) {
+      const ratio = (a1.h - h) / (a1.h - a2.h);
+      return Math.round(a1.p + ratio * (a2.p - a1.p));
+    }
+  }
+  return 0;
+}
+
 function updateFullColorGuide(hsv, r, g, b) {
   const { h, s, v } = hsv;
 
   // --- 色相スライダー位置 ---
-  // hue 0°(赤)=左端(0%), hue 180°(シアン)=中央(50%), hue 359°=右端付近(≈100%)
-  let huePos;
-  if (h === 0) {
-    huePos = 0; // 赤 → 左端
-  } else {
-    huePos = ((360 - h) % 360) / 360;
-  }
-  const huePct = Math.round(huePos * 100);
+  const huePresses = hueToPresses(h);
+  const huePct = (huePresses / 200) * 100; // 0〜100%
 
   document.getElementById('hue-indicator').style.left = huePct + '%';
   document.getElementById('hue-num').textContent = h;
-  document.getElementById('hue-pos').textContent = huePct;
+
+  document.getElementById('hue-presses-r').textContent = huePresses;
+  document.getElementById('hue-presses-l').textContent = (200 - huePresses);
 
   // --- SV正方形描画 ---
   drawSvSquare(h);
@@ -490,17 +528,14 @@ function updateFullColorGuide(hsv, r, g, b) {
   ind.style.left = sx + 'px';
   ind.style.top  = sy + 'px';
 
-  document.getElementById('sat-num').textContent = s;
-  document.getElementById('val-num').textContent = v;
+  // 100回基準と仮定
+  const satPresses = s; 
+  const valPresses = 100 - v;
+  document.getElementById('sat-presses').textContent = satPresses;
+  document.getElementById('val-presses').textContent = valPresses;
 
   // --- ステップ説明 ---
   const stepsBox = document.getElementById('steps-box');
-  const posDesc = huePct <= 10 ? 'かなり左端 (ZL側・赤)' :
-                  huePct <= 25 ? '左寄り (マゼンタ〜青)' :
-                  huePct <= 40 ? 'やや左 (青〜シアン)' :
-                  huePct <= 60 ? '中央あたり (シアン)' :
-                  huePct <= 75 ? 'やや右 (緑)' :
-                  huePct <= 90 ? '右寄り (黄〜オレンジ)' : 'かなり右端 (ZR側)';
   const satDesc = s <= 10 ? 'かなり左端（ほぼ白/灰）' :
                   s <= 30 ? '左寄り（淡い色）' :
                   s <= 70 ? '中央あたり' :
@@ -512,9 +547,10 @@ function updateFullColorGuide(hsv, r, g, b) {
 
   stepsBox.innerHTML = `
     <div class="step"><span class="step-num">1</span><span>「フルカラー」タブを選択する</span></div>
-    <div class="step"><span class="step-num">2</span><span>色相スライダーを <strong>${posDesc}</strong> (${huePct}%) に動かす → 色相 ${h}°</span></div>
-    <div class="step"><span class="step-num">3</span><span>正方形の横位置: <strong>${satDesc}</strong> (彩度 ${s}%)</span></div>
-    <div class="step"><span class="step-num">4</span><span>正方形の縦位置: <strong>${valDesc}</strong> (明度 ${v}%)</span></div>
+    <div class="step"><span class="step-num">2</span><span>正方形を一番左上(白)に戻す</span></div>
+    <div class="step"><span class="step-num">3</span><span>そこから右へ <strong>約 ${satPresses} 回</strong>、下へ <strong>約 ${valPresses} 回</strong> 動かす</span></div>
+    <div class="step"><span class="step-num">4</span><span>色相スライダーを一番左(ZL)まで戻す</span></div>
+    <div class="step"><span class="step-num">5</span><span>そこから右(ZR)へ <strong>約 ${huePresses} 回</strong> 動かす<br>（一番右から左(ZL)へ ${200 - huePresses}回 でもOK）</span></div>
   `;
 }
 

@@ -28,7 +28,9 @@
       <div id="drop-zone">
         <div class="drop-icon">🖼️</div>
         <p class="drop-title">画像をドロップ または クリックして選択</p>
-        <p class="drop-sub">対応形式: PNG / JPG / GIF / WEBP ｜ ゲーム内ペイントは 16×16 ピクセル</p>
+        <p class="drop-sub">対応形式: PNG / JPG / GIF / WEBP</p>
+        <p class="drop-sub" style="color:var(--orange-d); font-weight:bold; margin-top:8px;">⚠️ 1920×1080以上の画像は読み込めません</p>
+        <p class="drop-sub" style="font-size:0.75rem;">※軽量化のため。出来るだけ事前にドット絵サイズ（128×128以下など）に縮小してから読み込むと快適に動作します。<br>※正方形の画像だと作りやすいです。</p>
         <input type="file" id="file-input" accept="image/*" hidden>
       </div>
     </section>
@@ -42,6 +44,10 @@
           <div class="panel-header">
             <span class="panel-title">🖼️ 画像ビューア</span>
             <div class="header-controls">
+              <div class="mode-toggle">
+                <button id="mode-select-btn" class="mode-btn active" onclick="setInteractionMode('select')">👆 選択</button>
+                <button id="mode-move-btn" class="mode-btn" onclick="setInteractionMode('move')">🖐️ 移動</button>
+              </div>
               <button id="ruler-btn" class="ruler-btn" onclick="toggleRuler()">📏 ルーラー</button>
               <div class="zoom-controls">
                 <button id="zoom-out" class="zoom-btn">−</button>
@@ -55,7 +61,9 @@
             <canvas id="pixel-canvas"></canvas>
             <canvas id="overlay-canvas"></canvas>
           </div>
-          <p class="hint-text">👆 ピクセルをクリック／タップして色を取得</p>
+          <div class="canvas-instructions" style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+            <p class="hint-text" style="margin:0;">👆 ピクセルをクリック／タップして色を取得</p>
+          </div>
           <button id="reset-btn" class="sub-btn">🔄 別の画像を読み込む</button>
         </div>
 
@@ -120,28 +128,28 @@
               <div class="info-block">
                 <div class="info-label">フルカラー ガイド</div>
                 <div class="fullcolor-guide">
-                  <!-- 色相スライダー -->
-                  <div class="guide-section">
-                    <div class="guide-label">① 色相スライダー (ZL ← → ZR)</div>
-                    <div class="hue-slider-wrap">
-                      <div class="hue-slider-bar" id="hue-bar"></div>
-                      <div class="hue-indicator" id="hue-indicator"></div>
-                      <div class="hue-labels"><span>ZL (赤 0°)</span><span>ZR (赤 360°)</span></div>
-                    </div>
-                    <p class="guide-val">色相: <strong id="hue-num">---</strong>° → スライダー位置: <strong id="hue-pos">--</strong>%</p>
-                  </div>
                   <!-- SV正方形 -->
                   <div class="guide-section">
-                    <div class="guide-label">② カラー正方形 (彩度×明度)</div>
+                    <div class="guide-label">① カラー正方形 (彩度×明度)</div>
                     <div class="sv-square-wrap">
-                      <canvas id="sv-canvas" width="220" height="160"></canvas>
+                      <canvas id="sv-canvas" width="280" height="140"></canvas>
                       <div class="sv-indicator" id="sv-indicator"></div>
                     </div>
                     <div class="sv-labels">
                       <div><span>← 白/灰 (左)</span><span>鮮やか (右) →</span></div>
                       <div><span>↑ 明るい (上)</span><span>↓ 暗い (下)</span></div>
                     </div>
-                    <p class="guide-val">彩度: <strong id="sat-num">--</strong>% / 明度: <strong id="val-num">--</strong>%</p>
+                    <p class="guide-val">彩度(X): <strong>約 <span id="sat-presses">--</span>回</strong> 右へ / 明度(Y): <strong>約 <span id="val-presses">--</span>回</strong> 下へ</p>
+                  </div>
+                  <!-- 色相スライダー -->
+                  <div class="guide-section">
+                    <div class="guide-label">② 色相スライダー (ZL ← → ZR)</div>
+                    <div class="hue-slider-wrap">
+                      <div class="hue-slider-bar" id="hue-bar"></div>
+                      <div class="hue-indicator" id="hue-indicator"></div>
+                      <div class="hue-labels"><span>ZL (赤 0°)</span><span>ZR (赤 360°)</span></div>
+                    </div>
+                    <p class="guide-val">色相: <strong id="hue-num">---</strong>°<br>→ 一番左からZRを <strong>約 <span id="hue-presses-r">--</span>回</strong> 押す<br>　 (一番右からZLなら <strong>約 <span id="hue-presses-l">--</span>回</strong>)</p>
                   </div>
                   <!-- プレビュー -->
                   <div class="guide-section">
