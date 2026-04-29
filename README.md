@@ -1,3 +1,3 @@
-# 第7作 トモコレ ペイントカラーガイド (Tomodachi Life ColorcodeTool) v1.0
-
+# 第7作 トモコレ ペイントカラーガイド (Tomodachi Life ColorcodeTool)
+--------------------------
 # ここから→ https://h1ro223.github.io/TomodachiLife-ColorcodeTool/
